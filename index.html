@@ -177,20 +177,45 @@ const BINGO=[
 ];
 const TY={s:['⭐','Individual','Só tu'],d:['⚔️','Duelo','Contra 1 pessoa'],g:['👥','Grupo','Marca para todos']};
 const LINES=[[0,1,2,3],[4,5,6,7],[8,9,10,11],[12,13,14,15],[0,4,8,12],[1,5,9,13],[2,6,10,14],[3,7,11,15],[0,5,10,15],[3,6,9,12]];
-const CARDS=[
-['Leilão do preço','Todos dizem o preço da próxima garrafa antes de perguntar. Mais perto ganha.',3],
-['Segunda volta','O primeiro a conseguir que um produtor lhe sirva uma segunda prova sem pedir diretamente ganha.',3],
-['O mais caro','5 minutos: quem encontrar a garrafa mais cara da feira (com o preço confirmado) ganha.',3],
-['Pelo nome','Na próxima banca, o primeiro a descobrir o nome do produtor e a tratá-lo pelo nome ganha.',2],
-['O mais vendido','Na próxima banca, todos apostam qual é o vinho mais vendido. O produtor revela.',2],
-['Cara de póquer','Quem lançou a carta prova um vinho e o grupo adivinha pela cara se gostou. Se ninguém acertar, ganha quem lançou.',2],
-['Nota 0–20','Todos dão nota em segredo ao mesmo vinho. Quem ficar mais perto da média ganha.',2],
-['3 palavras','Cada um descreve o vinho em 3 palavras. Proibido "frutado". O grupo vota a melhor.',2],
-['Expedição','Encontrem a banca mais longe de onde estão. O primeiro a chegar ganha.',2],
-['Pausa água 💧','Todos bebem água e registam no perfil (+1 cada).',0]
+const VERDADES=[
+'Qual foi o vinho mais caro que já compraste e valeu a pena?',
+'Quem deste grupo seria o pior sommelier? Porquê?',
+'Qual foi a pior ressaca da tua vida e de quê?',
+'Que vinho já fingiste adorar para não ficar mal?',
+'Quem do grupo levavas para uma semana de vindimas? E quem nunca?',
+'Qual foi a mensagem mais embaraçosa que já enviaste depois de beber?',
+'Já disseste "noto aqui frutos vermelhos" sem notar nada? Conta.',
+'Se abrisses uma quinta com alguém do grupo, quem era e como se chamava o vinho?',
+'Qual foi o teu pior date de sempre?',
+'Que mania de alguém do grupo te irrita (com carinho)?',
+'Qual foi a última coisa que pesquisaste no Google e não querias que ninguém visse?',
+'Quem do grupo é mais provável de comprar uma caixa hoje sem precisar?',
+'Qual é a tua opinião mais impopular sobre vinho (ou comida)?',
+'Que figura triste fizeste numa festa e que ninguém aqui sabe?',
+'Se tivesses de apagar uma pessoa do grupo do WhatsApp por um dia, quem era?'
 ];
+const PROVAS=[
+'Apresenta o próximo vinho ao grupo como um vendedor da televisão, durante 20 segundos.',
+'Descreve o último vinho como se fosse um perfil de Tinder.',
+'O grupo escolhe a tua próxima prova e tu não podes ver o rótulo.',
+'Até à próxima carta, falas com o sotaque que o grupo escolher.',
+'Faz um brinde de 15 segundos em inglês sem parar nem repetir palavras.',
+'Dá o telemóvel ao grupo: escolhem uma foto da tua galeria para mostrar (podes vetar uma).',
+'Até à próxima carta, tens de chamar "maestro" a toda a gente.',
+'Manda um áudio a alguém fora do grupo a recomendar um vinho como um sommelier snob.',
+'Publica a story que o grupo escrever (podes apagar daqui a 1 hora).',
+'Faz pose de catálogo de vinho e deixa o grupo tirar a foto.',
+'Imita alguém do grupo a provar vinho. Os outros têm de adivinhar quem é.',
+'Deixa alguém do grupo escolher a próxima banca. Lá, tens de elogiar o vinho ao produtor, goste ou não.',
+'Canta o refrão de uma música trocando a letra por palavras de vinho.',
+'Até à próxima carta, só podes beber com a mão esquerda.',
+'Faz 10 segundos de discurso de vencedor como se tivesses ganho a Rota dos Copos.'
+];
+const VP={v:['🗣️','Verdade',2,VERDADES],p:['🎭','Prova',3,PROVAS]};
+const REFUSE=3;
+
 const STAGES=[[0,'Copo vazio'],[.1,'Aquecimento'],[.25,'Conversa solta'],[.45,'Sommeliers de bancada'],[.65,'Filósofos do tanino'],[.85,'Fado às 3h'],[1,'Lenda da Junqueira']];
-const NAV=[['perfil','🙂','Perfil'],['bingo','🎯','Bingo'],['cartas','🃏','Cartas'],['ranking','🏆','Ranking']];
+const NAV=[['perfil','🙂','Perfil'],['bingo','🎯','Bingo'],['cartas','🎲','V ou P'],['ranking','🏆','Ranking']];
 const $=s=>document.querySelector(s);
 const esc=s=>String(s??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 const av=(p,s=30)=>`<span class="av" style="width:${s}px;height:${s}px;background:${p.c};font-size:${Math.round(s*.55)}px">${p.e}</span>`;
@@ -213,7 +238,7 @@ const Store={
       if(u){subs.push(DB.collection('events').orderBy('t','desc').limit(400).onSnapshot(s=>{events=s.docs.map(d=>({id:d.id,...d.data()}));onEvents();render()},()=>{}));
         subs.push(DB.collection('photos').orderBy('t','desc').limit(40).onSnapshot(s=>{photos=s.docs.map(d=>({id:d.id,...d.data()}));render()},()=>{}));
         subs.push(DB.doc('game/end').onSnapshot(s=>{const n=s.exists?s.data():null;const was=ENDST&&ENDST.on;ENDST=n;if(n&&n.on&&!was){finalShown=false}render()},()=>{}));
-        subs.push(DB.doc('game/card').onSnapshot(s=>{const n=s.exists?s.data():null;if(n&&n.open&&n.by!==ME&&(!card||card.t!==n.t)){toast('🃏 '+(players[n.by]?.name||'Alguém')+' lançou uma carta!');try{navigator.vibrate&&navigator.vibrate(200)}catch(e){}}card=n;render()},()=>{}));
+        subs.push(DB.doc('game/card').onSnapshot(s=>{const n=s.exists?s.data():null;if(n&&n.open&&n.by!==ME&&(!card||card.t!==n.t)){banner('🎲','Verdade ou prova para '+(players[n.target]?.name||'alguém')+'!');try{navigator.vibrate&&navigator.vibrate(200)}catch(e){}}card=n;render()},()=>{}));
         if(pendingProfile){const pp=pendingProfile;pendingProfile=null;DB.doc('players/'+u.uid).get().then(d=>{if(!d.exists)this.savePlayer(pp)})}}
       render()});
   },
@@ -367,16 +392,27 @@ function pick({html,lbl='Quem?',max=99,min=1,exclude=[],pre=[],cta='Confirmar',c
 
 /* ---------- CARTAS (shared, live) ---------- */
 function cartas(){
-  const c=card&&card.open?card:null,C=c?CARDS[c.i]:null;
-  $('#main').innerHTML=`<div class="sec stack"><div class="h2">Cartas desafio</div>${(()=>{const k=flashKey();if(flashDone(k))return '';const F=CARDS[flashIdx(k)];return `<div class="deal" style="border:4px solid var(--gold)"><span class="k">⚡ Relâmpago · vale o dobro (+${F[2]*2}) · até às ${new Date().getHours()}:59</span><h3>${F[0]}</h3><p>${F[1]}</p></div><button class="btn gold full" onclick="flashWin()">⚡ Escolher vencedor(es)</button>`})()}
-  <p class="sub">Uma carta de cada vez para o grupo todo, ao vivo em todos os telemóveis. Quem lança a carta escolhe o vencedor.</p>
-  ${c?`<div class="deal"><span class="k">Lançada por ${nm(c.by)} · +${C[2]} pts</span><h3>${C[0]}</h3><p>${C[1]}</p></div>
-   ${c.by===ME||Date.now()-c.t>300000?`<button class="btn gold full" onclick="winCard()">🏅 Escolher vencedor(es)</button><button class="btn ghost full" onclick="Store.setCard(null)">Cancelar carta</button>`:`<p class="sub" style="text-align:center">À espera que ${nm(c.by)} escolha o vencedor…</p>`}`
-  :`<button class="back" style="width:100%" onclick="draw()"><div><div class="f">🃏</div><div style="font:700 20px Fraunces;margin-top:8px">Lançar uma carta</div><div class="sub">Aparece no telemóvel de todos</div></div></button>`}
-  <div class="card"><div class="rule"><span>Ganhar uma carta</span><b>+2 a +3</b></div><div class="rule"><span>Ganhar um duelo do bingo a alguém</span><b>+2</b></div><div class="rule"><span>Poderes de linha</span><b>±3</b></div><p class="sub" style="margin-top:6px">Tudo isto conta na coluna 🃏 Desafios do ranking.</p></div></div>`;
+  const c=card&&card.open?card:null;
+  const fk=flashKey(),fl=flashInfo(fk);
+  const flash=fl&&!flashDone(fk)?`<div class="deal" style="border:4px solid var(--gold)"><span class="k">⚡ Relâmpago · vale o dobro · até às ${new Date().getHours()}:59</span><div style="margin:8px 0">${av(players[fl.v],52)}</div><h3>${nm(fl.v)}, prova!</h3><p>${PROVAS[fl.i]}</p></div>
+   <div class="bigacts"><button class="aw" onclick="flashRes(true)">✓ Cumpriu<small>+${VP.p[2]*2}</small></button><button class="aa" style="background:var(--s2);color:var(--cream)" onclick="flashRes(false)">✗ Recusou<small>−${REFUSE*2}</small></button></div>`:'';
+  let body;
+  if(!c)body=`<button class="back" style="width:100%" onclick="vpStart()"><div><div class="f">🎲</div><div style="font:700 22px Fraunces;margin-top:8px">Verdade ou Prova</div><div class="sub">Sorteia uma vítima do grupo</div></div></button>
+    <button class="btn ghost full" onclick="vpChoose()">Escolher a vítima</button>`;
+  else if(!c.mode)body=`<div class="deal"><span class="k">Lançada por ${nm(c.by)}</span><div style="margin:10px 0">${av(players[c.target]||{c:'#999',e:'?'},64)}</div><h3>${nm(c.target)}</h3><p>Verdade ou prova?</p></div>
+    <div class="bigacts"><button class="aw" onclick="vpMode('v')">🗣️ Verdade<small>+${VP.v[2]}</small></button><button class="aw" style="background:var(--gold);color:#2A1018" onclick="vpMode('p')">🎭 Prova<small>+${VP.p[2]}</small></button></div>
+    <button class="btn ghost full" onclick="Store.setCard(null)">Cancelar</button>`;
+  else{const M=VP[c.mode];body=`<div class="deal"><span class="k">${M[0]} ${M[1]} para ${nm(c.target)} · +${M[2]}</span><h3 style="font-size:24px;line-height:1.25">${M[3][c.i]}</h3><p style="font-size:13px">Recusar custa −${REFUSE} pontos.</p></div>
+    <div class="bigacts"><button class="aw" onclick="vpRes(true)">✓ Cumpriu<small>+${M[2]}</small></button><button class="aa" style="background:var(--s2);color:var(--cream)" onclick="vpRes(false)">✗ Recusou<small>−${REFUSE}</small></button></div>
+    <button class="btn ghost full" onclick="vpMode('${c.mode}')">🔄 Trocar pergunta</button>`}
+  $('#main').innerHTML=`<div class="sec stack"><div class="h2">Verdade ou Prova</div><p class="sub">Só entre vocês. A carta aparece em todos os telemóveis e qualquer um pode marcar o resultado.</p>
+  ${flash}${body}
+  <div class="card"><div class="rule"><span>🗣️ Responder a uma verdade</span><b>+${VP.v[2]}</b></div><div class="rule"><span>🎭 Cumprir uma prova</span><b>+${VP.p[2]}</b></div><div class="rule"><span>✗ Recusar</span><b>−${REFUSE}</b></div><div class="rule"><span>⚡ Relâmpago (de hora a hora)</span><b>a dobrar</b></div></div></div>`;
 }
-function draw(){const recent=events.filter(e=>e.k==='card').slice(0,6).map(e=>e.ci);let pool=CARDS.map((_,i)=>i).filter(i=>!recent.includes(i));const i=pool[Math.floor(Math.random()*pool.length)];Store.setCard({open:true,i,by:ME,t:Date.now()})}
-function winCard(){const C=CARDS[card.i],ci=card.i;pick({html:`<div class="hd"><div class="em">🏅</div><h3>${C[0]}</h3></div>`,lbl:'Quem ganhou?',cta:`Dar +${C[2]}`,cb:ids=>{Store.addEvent({k:'card',ci,to:ids,pts:C[2],msg:`🃏 ${ids.map(nm).join(', ')} ganhou "${C[0]}"`});Store.setCard(null);closeM();confetti(80)}})}
+function vpStart(){const ids=Object.keys(players);const recent=events.filter(e=>e.k==='card').slice(0,Math.max(ids.length-2,1)).flatMap(e=>e.to||[]);let pool=ids.filter(i=>!recent.includes(i));if(!pool.length)pool=ids;Store.setCard({open:true,by:ME,target:pool[Math.floor(Math.random()*pool.length)],mode:null,t:Date.now()})}
+function vpChoose(){pick({html:'<div class="hd"><div class="em">🎯</div><h3>Quem é a vítima?</h3></div>',max:1,cta:'Esta pessoa',cb:v=>{closeM();Store.setCard({open:true,by:ME,target:v[0],mode:null,t:Date.now()})}})}
+function vpMode(m){const used=events.filter(e=>e.k==='card'&&e.mode===m).map(e=>e.ci);const L=VP[m][3];let pool=L.map((_,i)=>i).filter(i=>!used.includes(i)&&i!==card.i);if(!pool.length)pool=L.map((_,i)=>i);Store.setCard({...card,mode:m,i:pool[Math.floor(Math.random()*pool.length)]})}
+function vpRes(ok){const c=card,M=VP[c.mode];Store.addEvent({k:'card',mode:c.mode,ci:c.i,to:[c.target],pts:ok?M[2]:-REFUSE,msg:ok?`${M[0]} ${nm(c.target)} cumpriu a ${M[1].toLowerCase()}`:`🙈 ${nm(c.target)} recusou a ${M[1].toLowerCase()}`});Store.setCard(null);if(ok)confetti(70)}
 
 
 
@@ -409,11 +445,11 @@ function wineList(id,del){const ws=(players[id]?.wines||[]).slice().sort((a,b)=>
 function rivalPick(){pick({html:'<div class="hd"><div class="em">⚔️</div><h3>Escolhe o teu rival</h3><p>Se acabares à frente dele (sem contar este bónus), ganhas <b style="color:var(--gold)">+5</b>.</p></div>',max:1,exclude:[ME],cta:'É este',cb:r=>{Store.savePlayer({...players[ME],rival:r[0]});closeM();Store.addEvent({k:'rival',to:[],pts:0,msg:`⚔️ ${nm(ME)} escolheu ${nm(r[0])} como rival`})}})}
 /* relâmpago */
 const flashKey=()=>{const d=new Date();return d.toISOString().slice(0,10)+'-'+d.getHours()};
-const flashIdx=k=>{let h=7;for(const c of k)h=(h*31+c.charCodeAt(0))>>>0;return h%(CARDS.length-1)};
+const flashInfo=k=>{const ids=Object.keys(players).sort();if(!ids.length)return null;let h=7;for(const c of k)h=(h*31+c.charCodeAt(0))>>>0;return{v:ids[h%ids.length],i:(h>>>5)%PROVAS.length}};
 const flashDone=k=>events.some(e=>e.k==='flash'&&e.key===k);
-function flashWin(){const k=flashKey(),C=CARDS[flashIdx(k)];pick({html:`<div class="hd"><div class="em">⚡</div><h3>${C[0]}</h3></div>`,lbl:'Quem ganhou?',cta:`Dar +${C[2]*2}`,cb:ids=>{Store.addEvent({k:'flash',key:k,to:ids,pts:C[2]*2,msg:`⚡ ${ids.map(nm).join(', ')} ganhou o relâmpago "${C[0]}"`});closeM();confetti(90)}})}
+function flashRes(ok){const k=flashKey(),f=flashInfo(k);Store.addEvent({k:'flash',key:k,to:[f.v],pts:ok?VP.p[2]*2:-REFUSE*2,msg:ok?`⚡ ${nm(f.v)} cumpriu a prova relâmpago`:`⚡🙈 ${nm(f.v)} recusou a prova relâmpago`});if(ok)confetti(90)}
 let lastFlash=null;
-setInterval(()=>{if(!authed||!players[ME]||(ENDST&&ENDST.on))return;const k=flashKey();if(k!==lastFlash){const first=lastFlash===null;lastFlash=k;if(!flashDone(k)&&!first){banner('⚡','Novo desafio relâmpago! Vale o dobro. Vai às Cartas.');render()}}},20000);
+setInterval(()=>{if(!authed||!players[ME]||(ENDST&&ENDST.on))return;const k=flashKey();if(k!==lastFlash){const first=lastFlash===null;lastFlash=k;if(!flashDone(k)&&!first){banner('⚡','Prova relâmpago para '+nm(flashInfo(k).v)+'! Vale o dobro. Vai às Cartas.');render()}}},20000);
 /* partilhar */
 async function shareResult(){const L=plist(),c=document.createElement('canvas');c.width=1080;c.height=1350;const x=c.getContext('2d');
   x.fillStyle='#1C0910';x.fillRect(0,0,1080,1350);x.fillStyle='#6E1230';x.fillRect(60,60,960,360);
@@ -478,7 +514,7 @@ function ranking(me,L){
 function rules(){openM(`<div class="hd"><div class="em">📜</div><h3>Como se pontua</h3></div>
   <div class="card" style="background:var(--s2)"><div class="rule"><span>🍷 Cada copo provado</span><b>+1</b></div><div class="rule"><span>💧 Cada água (até ao nº de copos)</span><b>+1</b></div>
   <div class="rule"><span>🎯 Casa do bingo</span><b>+2 a +4</b></div><div class="rule"><span>🎯 Linha completa</span><b>+5 + poder</b></div><div class="rule"><span>🎯 Cartão cheio</span><b>+15</b></div>
-  <div class="rule"><span>🃏 Ganhar carta desafio</span><b>+2 a +3</b></div><div class="rule"><span>⚔️ Ganhar duelo a quem te desafiou</span><b>+2</b></div><div class="rule"><span>🗡️ Ser roubado</span><b>−3</b></div></div>
+  <div class="rule"><span>🗣️ Verdade / 🎭 Prova</span><b>+2 / +3</b></div><div class="rule"><span>🙈 Recusar</span><b>−3</b></div><div class="rule"><span>⚔️ Ganhar duelo a quem te desafiou</span><b>+2</b></div><div class="rule"><span>🗡️ Ser roubado</span><b>−3</b></div></div>
   <p>O ranking geral soma tudo. Regista só o que fizeste, é jogo de honra. 🍷</p><button class="btn gold full" style="margin-top:12px" onclick="closeM()">Percebido</button>`)}
 
 function confetti(n){const c=$('#cf'),x=c.getContext('2d');c.width=innerWidth;c.height=innerHeight;
