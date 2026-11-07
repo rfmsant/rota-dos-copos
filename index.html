@@ -139,6 +139,11 @@ canvas#cf{position:fixed;inset:0;pointer-events:none;z-index:50}
 .active{border:2px solid var(--gold)}
 .grid{grid-template-columns:repeat(4,minmax(0,1fr))!important}.cell{min-width:0;overflow:hidden}.cell .lb{overflow-wrap:anywhere;hyphens:auto}
 @media(max-width:360px){.cell .ic{font-size:19px}.cell .lb{font-size:8.5px}.cell .pt,.cell .ty{font-size:8px}.bd b{font-size:15px}.me .big{font-size:44px}}
+#ban{position:fixed;left:12px;right:12px;top:calc(12px + env(safe-area-inset-top));z-index:45;background:var(--gold);color:#2A1018;border-radius:20px;padding:14px 16px;display:flex;gap:12px;align-items:center;font-weight:800;font-size:15px;line-height:1.3;transform:translateY(-140%);transition:transform .35s;max-width:520px;margin:0 auto}
+#ban.show{transform:none}#ban .be{font-size:32px}
+.phl{display:block;text-align:center;background:var(--s2);border:1.5px dashed var(--line);border-radius:14px;padding:12px;margin:12px 0;font-weight:700;font-size:14px;color:var(--cream)}.phl input{display:none}
+.gal{display:grid;grid-template-columns:repeat(3,1fr);gap:6px}.gal button{border:0;padding:0;background:none;aspect-ratio:1;border-radius:10px;overflow:hidden}.gal img{width:100%;height:100%;object-fit:cover;display:block}
+.stars{display:flex;gap:6px}.stars button{border:0;background:var(--s2);border-radius:10px;width:44px;height:44px;font-size:22px;color:var(--muted)}.stars button.on{color:var(--gold)}
 </style>
 </head>
 <body>
@@ -205,7 +210,8 @@ const Store={
     DB.collection('players').onSnapshot(s=>{players={};s.docs.forEach(d=>players[d.id]=d.data());ready=true;clearTimeout(t);render()},e=>toast('Erro: '+e.code));
     let subs=[];
     AUTH.onAuthStateChanged(u=>{subs.forEach(f=>f());subs=[];ME=u?u.uid:null;authed=!!u;
-      if(u){subs.push(DB.collection('events').orderBy('t','desc').limit(400).onSnapshot(s=>{events=s.docs.map(d=>({id:d.id,...d.data()}));render()},()=>{}));
+      if(u){subs.push(DB.collection('events').orderBy('t','desc').limit(400).onSnapshot(s=>{events=s.docs.map(d=>({id:d.id,...d.data()}));onEvents();render()},()=>{}));
+        subs.push(DB.collection('photos').orderBy('t','desc').limit(40).onSnapshot(s=>{photos=s.docs.map(d=>({id:d.id,...d.data()}));render()},()=>{}));
         subs.push(DB.doc('game/end').onSnapshot(s=>{const n=s.exists?s.data():null;const was=ENDST&&ENDST.on;ENDST=n;if(n&&n.on&&!was){finalShown=false}render()},()=>{}));
         subs.push(DB.doc('game/card').onSnapshot(s=>{const n=s.exists?s.data():null;if(n&&n.open&&n.by!==ME&&(!card||card.t!==n.t)){toast('🃏 '+(players[n.by]?.name||'Alguém')+' lançou uma carta!');try{navigator.vibrate&&navigator.vibrate(200)}catch(e){}}card=n;render()},()=>{}));
         if(pendingProfile){const pp=pendingProfile;pendingProfile=null;DB.doc('players/'+u.uid).get().then(d=>{if(!d.exists)this.savePlayer(pp)})}}
@@ -224,7 +230,7 @@ let pendingProfile=null;
 /* ---------- SCORING (computed, never stored) ---------- */
 function seedOrder(id){let h=2166136261;for(const ch of id)h=Math.imul(h^ch.charCodeAt(0),16777619);const a=BINGO.map((_,i)=>i);for(let i=a.length-1;i>0;i--){h=Math.imul(h^(h>>>13),1274126177)>>>0;const j=h%(i+1);[a[i],a[j]]=[a[j],a[i]]}return a}
 function doneSet(id){const p=players[id]||{},s=new Set(Object.keys(p.bingo||{}).map(Number));events.forEach(e=>{if(e.k==='group'&&(e.to||[]).includes(id))s.add(e.cell)});return s}
-function score(id){
+function baseScore(id){
   const p=players[id]||{},cups=p.cups||0,water=Math.min(p.water||0,cups),done=doneSet(id),order=seedOrder(id);
   let bingo=0;done.forEach(i=>bingo+=BINGO[i][3]);
   const lines=LINES.filter(L=>L.every(pos=>done.has(order[pos]))).length;
@@ -233,6 +239,7 @@ function score(id){
   const b=bingo+lines*5+(full?15:0);
   return{cups,water,bingo:b,extra,lines,cells:done.size,total:cups+water+b+extra};
 }
+function score(id){const b=baseScore(id),r=players[id]?.rival;const rb=r&&players[r]&&b.total>baseScore(r).total?5:0;return{...b,rival:rb,extra:b.extra+rb,total:b.total+rb}}
 const plist=()=>Object.keys(players).map(id=>({id,...players[id],s:score(id)})).sort((a,b)=>b.s.total-a.s.total);
 const nm=id=>esc(players[id]?.name||'?');
 
@@ -276,7 +283,7 @@ function render(){
   $('#top').innerHTML=`<div class="top"><div class="wrap"><div class="brand"><div><small>Essência do Vinho · Lisboa ${offline?'':'· <span class="live"><i></i>AO VIVO</span>'}</small><h1>Rota dos <em>Copos</em></h1></div><button class="helpb" onclick="rules()">?</button></div>
   <div class="board">${L.map((p,i)=>{const bump=lastTotals[p.id]!==undefined&&lastTotals[p.id]!==p.s.total;return `<span class="bp ${i===0&&p.s.total>0?'lead':''} ${p.id===ME?'active':''} ${bump?'bump':''}">${av(p,26)}${i===0&&p.s.total>0?'👑 ':''}${esc(p.name)} <b>${p.s.total}</b></span>`}).join('')}</div></div></div>`;
   L.forEach(p=>lastTotals[p.id]=p.s.total);
-  $('#nav').innerHTML=`<div class="wrap">${NAV.map(([k,e,l])=>`<button class="${tab===k?'on':''}" onclick="go('${k}')"><span>${k==='perfil'?players[ME].e:e}</span>${l}${k==='cartas'&&card&&card.open?' •':''}</button>`).join('')}</div>`;
+  $('#nav').innerHTML=`<div class="wrap">${NAV.map(([k,e,l])=>`<button class="${tab===k?'on':''}" onclick="go('${k}')"><span>${k==='perfil'?players[ME].e:e}</span>${l}${k==='cartas'&&((card&&card.open)||!flashDone(flashKey()))?' •':''}</button>`).join('')}</div>`;
   if(ENDST&&ENDST.on&&!peek){finale(L);return}
   ({perfil,bingo,cartas,ranking})[tab](me,L);
   setTimeout(()=>document.querySelectorAll('.bp.bump').forEach(b=>b.classList.remove('bump')),400);
@@ -294,6 +301,10 @@ function perfil(me){
   <div class="row" style="display:flex;gap:10px"><button class="btn ghost" style="flex:1;padding:10px" onclick="cup(-1)">− copo</button><button class="btn ghost" style="flex:1;padding:10px" onclick="agua(-1)">− água</button></div>
   <div class="card"><div class="baro">${glass(Math.min(s.cups/10,1),88,130)}<div class="lvl"><div style="font:700 17px Fraunces">O teu copo</div><div class="sub" style="margin:4px 0 8px">${s.cups} de 10 copos da tua meta</div>
    <div style="font-size:12px;font-weight:700;color:var(--water)">💧 Hidratação ${p.cups?Math.round((p.water||0)/p.cups*100):0}%</div><div class="wbar"><i style="width:${p.cups?Math.min((p.water||0)/p.cups*100,100):0}%"></i></div></div></div></div>
+  <div class="card"><div class="row" style="display:flex;justify-content:space-between;align-items:center"><div style="font:700 17px Fraunces">⚔️ Rival</div><button class="btn ghost" style="padding:8px 12px" onclick="rivalPick()">${p.rival?'Trocar':'Escolher'}</button></div>
+   ${p.rival&&players[p.rival]?(()=>{const mine=baseScore(ME).total,his=baseScore(p.rival).total;return `<div class="rk">${av(players[p.rival],34)}<div class="n">${nm(p.rival)}<small>Tu ${mine} · ${his} ${nm(p.rival)}</small></div><span class="s" style="font-size:15px">${mine>his?'+5 ✓':'falta '+(his-mine+1)}</span></div>`})():'<p class="sub">Escolhe um rival: se acabares à frente dele, ganhas +5.</p>'}</div>
+  <div class="card"><div class="row" style="display:flex;justify-content:space-between;align-items:center"><div style="font:700 17px Fraunces">📓 O meu caderno</div><button class="btn gold" style="padding:8px 12px" onclick="wineAdd()">⭐ Guardar vinho</button></div>${wineList(ME,true)}</div>
+  <div class="card"><div style="font:700 17px Fraunces;margin-bottom:4px">Ao vivo</div><div class="feed">${events.filter(e=>e.msg).slice(0,4).map(e=>`<div><span style="opacity:.6">${new Date(e.t).toTimeString().slice(0,5)}</span> · ${e.msg}</div>`).join('')||'<div>Ainda nada.</div>'}</div></div>
   <button class="btn ghost full" onclick="editMe()">Editar passaporte</button></div>`;
 }
 let busy=false;
@@ -323,12 +334,12 @@ function cell(i){
   const head=`<div class="hd"><div class="em">${ic}</div><h3>${lb}</h3><div class="tagrow"><span class="lg">${TY[ty][0]} ${TY[ty][1]} · ${TY[ty][2]}</span><span class="lg" style="color:var(--gold)">+${pts} pts</span></div>
    <div class="info"><span class="k">Faz</span><span>${what}</span><span class="k">Prova</span><span>${proof}</span></div></div>`;
   if(done){openM(head+`<p style="text-align:center;color:var(--ok);font-weight:800">✓ Casa feita</p><div class="stack">${players[ME].bingo?.[i]?`<button class="btn ghost full" onclick="unmark(${i})">Desmarcar (enganei-me)</button>`:''}<button class="btn full" onclick="closeM()">Fechar</button></div>`);return}
-  if(ty==='s')openM(head+`<div class="stack"><button class="btn gold full" onclick="markSelf(${i})">Fiz! Marcar casa</button><button class="btn ghost full" onclick="closeM()">Ainda não</button></div>`);
-  if(ty==='g')pick({html:head,lbl:'Quem estava? (marca para todos)',min:1,pre:[ME],cta:'Marcar para o grupo',cb:ids=>{Store.addEvent({k:'group',cell:i,to:ids,pts:0,msg:`${ic} ${lb}`});closeM();confetti(80);toast('Casa marcada para '+ids.length)}});
+  if(ty==='s')openM(head+photoField+`<div class="stack"><button class="btn gold full" onclick="markSelf(${i})">Fiz! Marcar casa</button><button class="btn ghost full" onclick="closeM()">Ainda não</button></div>`);
+  if(ty==='g')pick({html:head+photoField,lbl:'Quem estava? (marca para todos)',min:1,pre:[ME],cta:'Marcar para o grupo',cb:ids=>{const f=$('#ph')?.files?.[0];Store.addEvent({k:'group',cell:i,to:ids,pts:0,msg:`${ic} ${lb}`});savePhoto(f,i);closeM();confetti(80);toast('Casa marcada para '+ids.length)}});
   if(ty==='d')pick({html:head,lbl:'Contra quem foi o duelo?',max:1,exclude:[ME],cta:'Ao duelo ⚔️',cb:o=>{const op=o[0];
     openM(`<div class="hd"><div class="em">⚔️</div><h3>${nm(ME)} vs ${nm(op)}</h3><p>Quem ganhou?</p></div><div class="stack"><button class="btn gold full" onclick="duel(${i},'${op}',true)">Ganhei eu 😎</button><button class="btn ghost full" onclick="duel(${i},'${op}',false)">Ganhou ${nm(op)}</button></div>`)}});
 }
-async function markSelf(i){const p={...players[ME],bingo:{...(players[ME].bingo||{}),[i]:Date.now()}};closeM();await Store.savePlayer(p);confetti(50);toast('+'+BINGO[i][3]+' '+BINGO[i][0])}
+async function markSelf(i){const f=$('#ph')?.files?.[0];savePhoto(f,i);const p={...players[ME],bingo:{...(players[ME].bingo||{}),[i]:Date.now()}};closeM();await Store.savePlayer(p);confetti(50);toast('+'+BINGO[i][3]+' '+BINGO[i][0])}
 async function unmark(i){const b={...players[ME].bingo};delete b[i];closeM();await Store.savePlayer({...players[ME],bingo:b})}
 async function duel(i,op,won){closeM();const [ic,lb]=BINGO[i];
   if(won){await markSelf(i);Store.addEvent({k:'duel',to:[],pts:0,msg:`${ic} ${nm(ME)} ganhou o ${lb} a ${nm(op)}. ${nm(op)} bebe água!`})}
@@ -357,7 +368,8 @@ function pick({html,lbl='Quem?',max=99,min=1,exclude=[],pre=[],cta='Confirmar',c
 /* ---------- CARTAS (shared, live) ---------- */
 function cartas(){
   const c=card&&card.open?card:null,C=c?CARDS[c.i]:null;
-  $('#main').innerHTML=`<div class="sec stack"><div class="h2">Cartas desafio</div><p class="sub">Uma carta de cada vez para o grupo todo, ao vivo em todos os telemóveis. Quem lança a carta escolhe o vencedor.</p>
+  $('#main').innerHTML=`<div class="sec stack"><div class="h2">Cartas desafio</div>${(()=>{const k=flashKey();if(flashDone(k))return '';const F=CARDS[flashIdx(k)];return `<div class="deal" style="border:4px solid var(--gold)"><span class="k">⚡ Relâmpago · vale o dobro (+${F[2]*2}) · até às ${new Date().getHours()}:59</span><h3>${F[0]}</h3><p>${F[1]}</p></div><button class="btn gold full" onclick="flashWin()">⚡ Escolher vencedor(es)</button>`})()}
+  <p class="sub">Uma carta de cada vez para o grupo todo, ao vivo em todos os telemóveis. Quem lança a carta escolhe o vencedor.</p>
   ${c?`<div class="deal"><span class="k">Lançada por ${nm(c.by)} · +${C[2]} pts</span><h3>${C[0]}</h3><p>${C[1]}</p></div>
    ${c.by===ME||Date.now()-c.t>300000?`<button class="btn gold full" onclick="winCard()">🏅 Escolher vencedor(es)</button><button class="btn ghost full" onclick="Store.setCard(null)">Cancelar carta</button>`:`<p class="sub" style="text-align:center">À espera que ${nm(c.by)} escolha o vencedor…</p>`}`
   :`<button class="back" style="width:100%" onclick="draw()"><div><div class="f">🃏</div><div style="font:700 20px Fraunces;margin-top:8px">Lançar uma carta</div><div class="sub">Aparece no telemóvel de todos</div></div></button>`}
@@ -366,6 +378,53 @@ function cartas(){
 function draw(){const recent=events.filter(e=>e.k==='card').slice(0,6).map(e=>e.ci);let pool=CARDS.map((_,i)=>i).filter(i=>!recent.includes(i));const i=pool[Math.floor(Math.random()*pool.length)];Store.setCard({open:true,i,by:ME,t:Date.now()})}
 function winCard(){const C=CARDS[card.i],ci=card.i;pick({html:`<div class="hd"><div class="em">🏅</div><h3>${C[0]}</h3></div>`,lbl:'Quem ganhou?',cta:`Dar +${C[2]}`,cb:ids=>{Store.addEvent({k:'card',ci,to:ids,pts:C[2],msg:`🃏 ${ids.map(nm).join(', ')} ganhou "${C[0]}"`});Store.setCard(null);closeM();confetti(80)}})}
 
+
+
+/* ---------- EXTRAS: banners, fotos, caderno, rival, relâmpago, partilhar ---------- */
+let photos=[],seenEv=null,banTimer;
+function banner(em,txt){let b=$('#ban');if(!b){b=document.createElement('div');b.id='ban';document.body.appendChild(b)}
+  b.innerHTML=`<div class="be">${em}</div><div>${txt}</div>`;b.classList.add('show');clearTimeout(banTimer);banTimer=setTimeout(()=>b.classList.remove('show'),3800);try{navigator.vibrate&&navigator.vibrate([80,60,80])}catch(e){}}
+function onEvents(){const ids=new Set(events.map(e=>e.id));
+  if(seenEv){events.filter(e=>!seenEv.has(e.id)&&e.by!==ME&&e.msg).slice(0,2).forEach(e=>{const em={steal:'🗡️',power:'🎯',card:'🃏',duel:'⚔️',flash:'⚡',group:'👥'}[e.k]||'🍷';banner(em,e.msg)})}
+  seenEv=ids}
+function shrink(file){return new Promise((res,rej)=>{const im=new Image();im.onload=()=>{const m=720,k=Math.min(1,m/Math.max(im.width,im.height)),c=document.createElement('canvas');c.width=Math.round(im.width*k);c.height=Math.round(im.height*k);c.getContext('2d').drawImage(im,0,0,c.width,c.height);res(c.toDataURL('image/jpeg',.6))};im.onerror=rej;im.src=URL.createObjectURL(file)})}
+const photoField=`<label class="phl">📷 Juntar foto (opcional)<input type="file" accept="image/*" id="ph" onchange="this.parentNode.firstChild.textContent=this.files[0]?'📷 Foto pronta ✓ ':'📷 Juntar foto (opcional)'"></label>`;
+async function savePhoto(file,cell){if(!file)return;try{const img=await shrink(file);if(DB)await DB.collection('photos').add({by:ME,cell,t:Date.now(),img});else{photos.unshift({id:String(Date.now()),by:ME,cell,t:Date.now(),img})}toast('📷 Foto na galeria');render()}catch(e){toast('Não deu para guardar a foto')}}
+function gallery(){if(!photos.length)return '';return `<div class="card"><div style="font:700 17px Fraunces;margin-bottom:8px">📸 Galeria da rota</div><div class="gal">${photos.slice(0,30).map((p,i)=>`<button onclick="showPh(${i})"><img src="${p.img}" alt=""></button>`).join('')}</div></div>`}
+function showPh(i){const p=photos[i];openM(`<img src="${p.img}" style="width:100%;border-radius:16px"><p style="text-align:center">${nm(p.by)}${p.cell!=null&&BINGO[p.cell]?' · '+BINGO[p.cell][0]+' '+BINGO[p.cell][1]:''}</p><button class="btn full" style="margin-top:10px" onclick="closeM()">Fechar</button>`)}
+/* caderno */
+function wineAdd(){let st=4;openM(`<div class="hd"><div class="em">📓</div><h3>Guardar vinho</h3><p>Para saberes o que comprar depois.</p></div>
+  <div class="field"><label>Produtor</label><input id="wp" maxlength="40" placeholder="Quinta…"></div><div class="field"><label>Vinho</label><input id="wv" maxlength="40" placeholder="Nome / ano"></div>
+  <div class="field"><label>Preço (opcional)</label><input id="wpr" maxlength="10" inputmode="decimal" placeholder="€"></div>
+  <div class="field"><label>Nota</label><div class="stars" id="ws">${[1,2,3,4,5].map(n=>`<button data-n="${n}">★</button>`).join('')}</div></div>
+  <button class="btn gold full" style="margin-top:14px" id="wok">Guardar</button>`);
+  const paint=()=>document.querySelectorAll('#ws button').forEach(b=>b.classList.toggle('on',+b.dataset.n<=st));paint();
+  document.querySelectorAll('#ws button').forEach(b=>b.onclick=()=>{st=+b.dataset.n;paint()});
+  $('#wok').onclick=()=>{const w={p:$('#wp').value.trim(),v:$('#wv').value.trim(),pr:$('#wpr').value.trim(),s:st,t:Date.now()};if(!w.p&&!w.v)return toast('Escreve o produtor ou o vinho');
+    Store.savePlayer({...players[ME],wines:[w,...(players[ME].wines||[])].slice(0,60)});closeM();toast('📓 Guardado')}}
+function wineDel(t){Store.savePlayer({...players[ME],wines:(players[ME].wines||[]).filter(w=>w.t!==t)})}
+function wineList(id,del){const ws=(players[id]?.wines||[]).slice().sort((a,b)=>b.s-a.s);if(!ws.length)return '<p class="sub">Ainda sem vinhos guardados.</p>';
+  return ws.map(w=>`<div class="rk"><div class="n">${esc(w.v||'—')}<small>${esc(w.p||'')}${w.pr?' · '+esc(w.pr)+'€':''}</small></div><span style="color:var(--gold);letter-spacing:-1px">${'★'.repeat(w.s)}</span>${del?`<button class="undo" style="position:static" onclick="wineDel(${w.t})">✕</button>`:''}</div>`).join('')}
+/* rival */
+function rivalPick(){pick({html:'<div class="hd"><div class="em">⚔️</div><h3>Escolhe o teu rival</h3><p>Se acabares à frente dele (sem contar este bónus), ganhas <b style="color:var(--gold)">+5</b>.</p></div>',max:1,exclude:[ME],cta:'É este',cb:r=>{Store.savePlayer({...players[ME],rival:r[0]});closeM();Store.addEvent({k:'rival',to:[],pts:0,msg:`⚔️ ${nm(ME)} escolheu ${nm(r[0])} como rival`})}})}
+/* relâmpago */
+const flashKey=()=>{const d=new Date();return d.toISOString().slice(0,10)+'-'+d.getHours()};
+const flashIdx=k=>{let h=7;for(const c of k)h=(h*31+c.charCodeAt(0))>>>0;return h%(CARDS.length-1)};
+const flashDone=k=>events.some(e=>e.k==='flash'&&e.key===k);
+function flashWin(){const k=flashKey(),C=CARDS[flashIdx(k)];pick({html:`<div class="hd"><div class="em">⚡</div><h3>${C[0]}</h3></div>`,lbl:'Quem ganhou?',cta:`Dar +${C[2]*2}`,cb:ids=>{Store.addEvent({k:'flash',key:k,to:ids,pts:C[2]*2,msg:`⚡ ${ids.map(nm).join(', ')} ganhou o relâmpago "${C[0]}"`});closeM();confetti(90)}})}
+let lastFlash=null;
+setInterval(()=>{if(!authed||!players[ME]||(ENDST&&ENDST.on))return;const k=flashKey();if(k!==lastFlash){const first=lastFlash===null;lastFlash=k;if(!flashDone(k)&&!first){banner('⚡','Novo desafio relâmpago! Vale o dobro. Vai às Cartas.');render()}}},20000);
+/* partilhar */
+async function shareResult(){const L=plist(),c=document.createElement('canvas');c.width=1080;c.height=1350;const x=c.getContext('2d');
+  x.fillStyle='#1C0910';x.fillRect(0,0,1080,1350);x.fillStyle='#6E1230';x.fillRect(60,60,960,360);
+  x.textAlign='center';x.fillStyle='#D9B44A';x.font='800 30px Inter, sans-serif';x.fillText('ESSÊNCIA DO VINHO · LISBOA 2026',540,130);
+  x.fillStyle='#F4E9DC';x.font='900 92px Georgia, serif';x.fillText('Rota dos Copos',540,240);
+  if(L[0]){x.font='700 52px Inter, sans-serif';x.fillStyle='#D9B44A';x.fillText('🏆 '+L[0].name+' · '+L[0].s.total+' pts',540,360)}
+  L.slice(0,8).forEach((p,i)=>{const y=520+i*92;x.fillStyle=i===0?'#D9B44A':'#2A1018';x.fillRect(100,y-62,880,80);x.fillStyle=i===0?'#2A1018':'#F4E9DC';x.textAlign='left';x.font='800 44px Inter, sans-serif';x.fillText((i+1)+'.  '+p.e+'  '+p.name,130,y-6);x.textAlign='right';x.fillText(p.s.total+'',950,y-6)});
+  x.textAlign='center';x.fillStyle='#B89AA2';x.font='600 32px Inter, sans-serif';const tot=L.reduce((a,p)=>a+p.s.cups,0);x.fillText(tot+' copos · '+L.length+' jogadores · rfmsant.github.io/rota-dos-copos',540,1290);
+  const blob=await new Promise(r=>c.toBlob(r,'image/png'));const f=new File([blob],'rota-dos-copos.png',{type:'image/png'});
+  try{if(navigator.canShare&&navigator.canShare({files:[f]})){await navigator.share({files:[f],title:'Rota dos Copos'});return}}catch(e){if(e.name==='AbortError')return}
+  const u=URL.createObjectURL(blob);openM(`<img src="${u}" style="width:100%;border-radius:12px"><p style="text-align:center">Mantém o dedo na imagem para guardar.</p><a class="btn gold full" style="display:block;text-align:center;text-decoration:none;margin-top:10px" href="${u}" download="rota-dos-copos.png">Descarregar</a>`)}
 
 /* ---------- FIM DA ROTA ---------- */
 let peek=false,finalShown=false;
@@ -383,6 +442,9 @@ function finale(L){
   ${L.length?`<div class="awards" style="text-align:left"><div class="aw2"><div class="e">🧽</div><div class="l">Esponja do dia</div><div class="v">${esc(by(p=>p.s.cups).name)}</div></div><div class="aw2"><div class="e">💧</div><div class="l">Camelo hidratado</div><div class="v">${esc(by(p=>p.water||0).name)}</div></div><div class="aw2"><div class="e">🎯</div><div class="l">Rei do bingo</div><div class="v">${esc(by(p=>p.s.cells).name)}</div></div><div class="aw2"><div class="e">🃏</div><div class="l">Desafiador</div><div class="v">${esc(by(p=>p.s.extra).name)}</div></div></div>`:''}
   <div class="card" style="text-align:left">${L.map((p,i)=>`<div class="rk"><span class="p">${i+1}</span>${av(p,34)}<div class="n">${esc(p.name)}<small>${p.s.cups} 🍷 · ${p.s.water} 💧 · ${p.s.bingo} 🎯 · ${p.s.extra} 🃏</small></div><span class="s">${p.s.total}</span></div>`).join('')}</div>
   <p class="sub">${duels} duelos · ${L.length} jogadores · Essência do Vinho 2026</p>
+  <button class="btn gold full" onclick="shareResult()">📤 Partilhar resultado</button>
+  ${gallery()}
+  <div class="card" style="text-align:left"><div style="font:700 17px Fraunces;margin-bottom:4px">📓 Os teus vinhos para comprar</div>${wineList(ME,false)}</div>
   <button class="btn ghost full" onclick="peek=true;tab='ranking';render()">Ver a app</button>
   <button class="btn ghost full" onclick="Store.setEnd({on:false,t:Date.now()})">Reabrir a rota</button></div>`;
   if(!finalShown){finalShown=true;scrollTo(0,0);setTimeout(()=>confetti(300),200)}
@@ -408,6 +470,7 @@ function ranking(me,L){
   <div class="card"><div class="rule" style="font-size:11px;color:var(--muted);font-weight:800"><span>JOGADOR</span><span>🍷 · 💧 · 🎯 · 🃏 = TOTAL</span></div>
    ${L.map((p,i)=>`<div class="rk"><span class="p">${i+1}</span>${av(p,34)}<div class="n">${esc(p.name)}${p.id===ME?' (tu)':''}<small>${p.s.cups} · ${p.s.water} · ${p.s.bingo} · ${p.s.extra}</small></div><span class="s">${p.s.total}</span></div>`).join('')}</div>
   ${L.length?`<div class="awards"><div class="aw2"><div class="e">🧽</div><div class="l">Esponja do dia</div><div class="v">${esc(by(p=>p.s.cups).name)}</div></div><div class="aw2"><div class="e">💧</div><div class="l">Camelo hidratado</div><div class="v">${esc(by(p=>p.water||0).name)}</div></div><div class="aw2"><div class="e">🎯</div><div class="l">Rei do bingo</div><div class="v">${esc(by(p=>p.s.cells).name)}</div></div><div class="aw2"><div class="e">🃏</div><div class="l">Desafiador</div><div class="v">${esc(by(p=>p.s.extra).name)}</div></div></div>`:''}
+  ${gallery()}
   <button class="btn gold full" onclick="endAsk()">🏁 Terminar a rota</button>
   <div class="card"><div style="font:700 17px Fraunces;margin-bottom:4px">Ao vivo</div><div class="feed">${events.filter(e=>e.msg).slice(0,15).map(e=>`<div><span style="opacity:.6">${new Date(e.t).toTimeString().slice(0,5)}</span> · ${e.msg}${e.pts?` <b style="color:var(--gold)">${e.pts>0?'+':''}${e.pts}</b>`:''}</div>`).join('')||'<div>Ainda nada. Lancem uma carta!</div>'}</div></div>
   </div>`;
