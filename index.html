@@ -293,9 +293,10 @@ async function join(){const n=(draft.n||'').trim(),pin=(draft.p||'').trim();if(!
   if(!/^\d{4}$/.test(pin))return toast('PIN de 4 dígitos');
   const slug=n.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g,'').replace(/[^a-z0-9]/g,'')||'x';
   const email=slug+'@rota-copos.app',pw='rota-'+pin;pendingProfile=prof;
-  try{await AUTH.signInWithEmailAndPassword(email,pw);toast('Bem-vindo de volta, '+n+'!')}
+  const ensure=async()=>{const u=AUTH.currentUser;if(!u)return;ME=u.uid;authed=true;const d=await DB.doc('players/'+u.uid).get();if(!d.exists){pendingProfile=null;await Store.savePlayer(prof)}render()};
+  try{await AUTH.signInWithEmailAndPassword(email,pw);await ensure();toast('Bem-vindo, '+n+'!')}
   catch(e){if(['auth/user-not-found','auth/invalid-credential','auth/invalid-login-credentials','auth/wrong-password'].includes(e.code)){
-      try{await AUTH.createUserWithEmailAndPassword(email,pw);toast('Bem-vindo, '+n+'! 🍷');confetti(100)}
+      try{await AUTH.createUserWithEmailAndPassword(email,pw);await ensure();toast('Bem-vindo, '+n+'! 🍷');confetti(100)}
       catch(e2){pendingProfile=null;toast(e2.code==='auth/email-already-in-use'?'PIN errado para esse nome':'Erro: '+e2.code)}}
     else{pendingProfile=null;toast('Erro: '+e.code)}}
 }
