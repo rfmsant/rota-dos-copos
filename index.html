@@ -137,6 +137,8 @@ canvas#cf{position:fixed;inset:0;pointer-events:none;z-index:50}
 .live{display:inline-flex;align-items:center;gap:6px;font-size:11px;font-weight:800;color:var(--ok)}.live i{width:7px;height:7px;border-radius:50%;background:var(--ok);display:block}
 .helpb{border:1px solid var(--line);background:var(--s1);border-radius:99px;width:34px;height:34px;font-weight:800}
 .active{border:2px solid var(--gold)}
+.grid{grid-template-columns:repeat(4,minmax(0,1fr))!important}.cell{min-width:0;overflow:hidden}.cell .lb{overflow-wrap:anywhere;hyphens:auto}
+@media(max-width:360px){.cell .ic{font-size:19px}.cell .lb{font-size:8.5px}.cell .pt,.cell .ty{font-size:8px}.bd b{font-size:15px}.me .big{font-size:44px}}
 </style>
 </head>
 <body>
@@ -152,31 +154,31 @@ const COL=['#9E1F45','#D9B44A','#4CC38A','#5AB0E6','#B57BEE','#F08A4B','#EE6BA8'
 // [icon, short label, type s/d/g, pts, what to do, proof]
 const BINGO=[
 ['💶','Preço certo','s',3,'Antes de perguntares, adivinha o preço de uma garrafa. Vale se errares por 3€ ou menos.','O produtor confirma o preço.'],
-['🤳','Selfie c/ produtor','s',2,'Tira uma selfie com um produtor ou enólogo, com o copo na mão.','A foto.'],
+['🤳','Selfie c/ produtor','s',2,'Tira uma selfie com um produtor, com o copo na mão.','A foto.'],
 ['🙅','Obrigado, mas não','s',2,'Ouve a apresentação toda de um produtor e no fim recusa educadamente a prova.','Uma testemunha do grupo.'],
 ['📖','A história','s',2,'Faz um produtor contar-te a história da quinta ou do nome de um vinho.','Conta-a ao grupo em 20 segundos.'],
-['👨‍🌾','Fala com o enólogo','s',3,'Descobre quem fez o vinho (o enólogo, não o vendedor) e troca 2 minutos de conversa.','Diz o nome dele ao grupo.'],
+['⚽','Penálti','d',3,'Desafia alguém: os dois bebem a prova de uma vez, à frente do produtor. Quem acabar primeiro ganha.','O produtor é o árbitro. Só marca se ganhares.'],
+['🫗','Até onde vai?','s',3,'Pede ao produtor para encher "só mais um bocadinho". Vale se passar de meio copo.','Mostra o copo ao grupo.'],
 ['🎁','Garrafa escondida','s',4,'Consegue que um produtor te sirva algo que não estava em cima da mesa.','Testemunha ou foto.'],
-['🍇','Casta rara','s',3,'Encontra uma casta que ninguém do grupo conhece.','Mostra o rótulo ao grupo.'],
-['📅','Colheita mais antiga','s',3,'Encontra uma garrafa com 15 ou mais anos numa banca.','Foto do ano no rótulo.'],
-['🏝️','Das ilhas','s',2,'Fala com um produtor da Madeira ou dos Açores.','Testemunha.'],
 ['🪪','Cartão de visita','s',2,'Sai de uma banca com o cartão ou contacto do produtor.','O cartão.'],
-['⚔️','Duelo da região','d',4,'Escolhe um vinho sem ver o rótulo. Tu e o adversário dizem a região: mais perto ganha.','O adversário confirma. Só marca se ganhares.'],
-['🍷','Duelo da casta','d',4,'Os dois dizem a casta principal antes de o produtor revelar.','Só marca se ganhares. Quem perde bebe água.'],
-['🏷️','Duelo do preço','d',3,'Os dois dizem o preço da mesma garrafa: mais perto ganha.','Só marca se ganhares.'],
-['📆','Duelo da colheita','d',3,'Os dois dizem o ano do vinho sem ver o rótulo: mais perto ganha.','Só marca se ganhares.'],
+['🤝','Convite para a quinta','s',4,'Sai de uma conversa com um convite para visitar a quinta.','Testemunha.'],
+['🧀','Petisco grátis','s',3,'Sai de uma banca com algo para comer que não pediste.','O petisco (ou o que resta dele).'],
+['❤️','O preferido dele','s',2,'Pergunta ao produtor qual é o vinho preferido dele (não o mais caro) e prova-o.','Diz ao grupo qual era.'],
+['🏷️','Duelo do preço','d',3,'Os dois dizem o preço da mesma garrafa. Mais perto ganha.','O produtor confirma. Só marca se ganhares.'],
 ['🥇','Duelo do best-seller','d',3,'Cada um aposta qual é o vinho mais vendido da banca. O produtor revela.','Só marca se ganhares.'],
-['🥂','Brinde c/ produtor','g',3,'O grupo todo brinda com um produtor.','Marca-se para todos os que estavam.']
+['🎯','Duelo da nota','d',3,'Os dois dão nota 0–20 ao mesmo vinho. Depois o produtor dá a dele. Mais perto ganha.','Só marca se ganhares.'],
+['🥂','Brinde c/ produtor','g',3,'O grupo todo brinda com um produtor.','Marca-se para todos os que estavam.'],
+['📸','Produtor fotógrafo','g',2,'Pede a um produtor para vos tirar uma foto de grupo.','A foto. Marca-se para todos os que estavam.']
 ];
 const TY={s:['⭐','Individual','Só tu'],d:['⚔️','Duelo','Contra 1 pessoa'],g:['👥','Grupo','Marca para todos']};
 const LINES=[[0,1,2,3],[4,5,6,7],[8,9,10,11],[12,13,14,15],[0,4,8,12],[1,5,9,13],[2,6,10,14],[3,7,11,15],[0,5,10,15],[3,6,9,12]];
 const CARDS=[
 ['Leilão do preço','Todos dizem o preço da próxima garrafa antes de perguntar. Mais perto ganha.',3],
-['Adivinha a colheita','No próximo vinho, quem acertar o ano (±1) ganha.',3],
-['Grau alcoólico','Próximo vinho: todos dizem o % de álcool. Mais perto ganha.',2],
-['Casta principal','Próximo vinho: quem acertar a casta principal antes de o produtor dizer ganha.',3],
+['Segunda volta','O primeiro a conseguir que um produtor lhe sirva uma segunda prova sem pedir diretamente ganha.',3],
+['O mais caro','5 minutos: quem encontrar a garrafa mais cara da feira (com o preço confirmado) ganha.',3],
+['Pelo nome','Na próxima banca, o primeiro a descobrir o nome do produtor e a tratá-lo pelo nome ganha.',2],
 ['O mais vendido','Na próxima banca, todos apostam qual é o vinho mais vendido. O produtor revela.',2],
-['Região às cegas','Quem lançou a carta esconde o rótulo do próximo vinho. Os outros dizem a região; quem acertar ganha.',3],
+['Cara de póquer','Quem lançou a carta prova um vinho e o grupo adivinha pela cara se gostou. Se ninguém acertar, ganha quem lançou.',2],
 ['Nota 0–20','Todos dão nota em segredo ao mesmo vinho. Quem ficar mais perto da média ganha.',2],
 ['3 palavras','Cada um descreve o vinho em 3 palavras. Proibido "frutado". O grupo vota a melhor.',2],
 ['Expedição','Encontrem a banca mais longe de onde estão. O primeiro a chegar ganha.',2],
@@ -204,7 +206,7 @@ const Store={
     let subs=[];
     AUTH.onAuthStateChanged(u=>{subs.forEach(f=>f());subs=[];ME=u?u.uid:null;authed=!!u;
       if(u){subs.push(DB.collection('events').orderBy('t','desc').limit(400).onSnapshot(s=>{events=s.docs.map(d=>({id:d.id,...d.data()}));render()},()=>{}));
-        subs.push(DB.doc('game/card').onSnapshot(s=>{card=s.exists?s.data():null;render()},()=>{}));
+        subs.push(DB.doc('game/card').onSnapshot(s=>{const n=s.exists?s.data():null;if(n&&n.open&&n.by!==ME&&(!card||card.t!==n.t)){toast('🃏 '+(players[n.by]?.name||'Alguém')+' lançou uma carta!');try{navigator.vibrate&&navigator.vibrate(200)}catch(e){}}card=n;render()},()=>{}));
         if(pendingProfile){const pp=pendingProfile;pendingProfile=null;DB.doc('players/'+u.uid).get().then(d=>{if(!d.exists)this.savePlayer(pp)})}}
       render()});
   },
@@ -354,7 +356,7 @@ function cartas(){
   const c=card&&card.open?card:null,C=c?CARDS[c.i]:null;
   $('#main').innerHTML=`<div class="sec stack"><div class="h2">Cartas desafio</div><p class="sub">Uma carta de cada vez para o grupo todo, ao vivo em todos os telemóveis. Quem lança a carta escolhe o vencedor.</p>
   ${c?`<div class="deal"><span class="k">Lançada por ${nm(c.by)} · +${C[2]} pts</span><h3>${C[0]}</h3><p>${C[1]}</p></div>
-   ${c.by===ME?`<button class="btn gold full" onclick="winCard()">🏅 Escolher vencedor(es)</button><button class="btn ghost full" onclick="Store.setCard(null)">Cancelar carta</button>`:`<p class="sub" style="text-align:center">À espera que ${nm(c.by)} escolha o vencedor…</p>`}`
+   ${c.by===ME||Date.now()-c.t>300000?`<button class="btn gold full" onclick="winCard()">🏅 Escolher vencedor(es)</button><button class="btn ghost full" onclick="Store.setCard(null)">Cancelar carta</button>`:`<p class="sub" style="text-align:center">À espera que ${nm(c.by)} escolha o vencedor…</p>`}`
   :`<button class="back" style="width:100%" onclick="draw()"><div><div class="f">🃏</div><div style="font:700 20px Fraunces;margin-top:8px">Lançar uma carta</div><div class="sub">Aparece no telemóvel de todos</div></div></button>`}
   <div class="card"><div class="rule"><span>Ganhar uma carta</span><b>+2 a +3</b></div><div class="rule"><span>Ganhar um duelo do bingo a alguém</span><b>+2</b></div><div class="rule"><span>Poderes de linha</span><b>±3</b></div><p class="sub" style="margin-top:6px">Tudo isto conta na coluna 🃏 Desafios do ranking.</p></div></div>`;
 }
