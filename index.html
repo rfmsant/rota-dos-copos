@@ -195,7 +195,7 @@ function closeM(){$('#modal').classList.remove('show')}
 $('#modal').onclick=e=>{if(e.target.id==='modal')closeM()};
 
 /* ---------- STORE: Firebase (Firestore + Auth), or local fallback ---------- */
-let ME=null,DB=null,AUTH=null,players={},events=[],card=null,tab='perfil',ready=false,offline=false,authed=false;
+let ENDST=null,ME=null,DB=null,AUTH=null,players={},events=[],card=null,tab='perfil',ready=false,offline=false,authed=false;
 const Store={
   init(){
     const cfg=window.FIREBASE_CONFIG;
@@ -206,16 +206,18 @@ const Store={
     let subs=[];
     AUTH.onAuthStateChanged(u=>{subs.forEach(f=>f());subs=[];ME=u?u.uid:null;authed=!!u;
       if(u){subs.push(DB.collection('events').orderBy('t','desc').limit(400).onSnapshot(s=>{events=s.docs.map(d=>({id:d.id,...d.data()}));render()},()=>{}));
+        subs.push(DB.doc('game/end').onSnapshot(s=>{const n=s.exists?s.data():null;const was=ENDST&&ENDST.on;ENDST=n;if(n&&n.on&&!was){finalShown=false}render()},()=>{}));
         subs.push(DB.doc('game/card').onSnapshot(s=>{const n=s.exists?s.data():null;if(n&&n.open&&n.by!==ME&&(!card||card.t!==n.t)){toast('🃏 '+(players[n.by]?.name||'Alguém')+' lançou uma carta!');try{navigator.vibrate&&navigator.vibrate(200)}catch(e){}}card=n;render()},()=>{}));
         if(pendingProfile){const pp=pendingProfile;pendingProfile=null;DB.doc('players/'+u.uid).get().then(d=>{if(!d.exists)this.savePlayer(pp)})}}
       render()});
   },
   local(){offline=true;authed=true;ME=localStorage.getItem('rc_local_me')||('L'+Math.random().toString(36).slice(2,8));try{localStorage.setItem('rc_local_me',ME)}catch(e){}
     const L=(()=>{try{return JSON.parse(localStorage.getItem('rc_local'))}catch(e){}})()||{players:{},events:[],card:null};
-    this.L=L;players=L.players;events=L.events;card=L.card;ready=true;render()},
+    this.L=L;players=L.players;events=L.events;card=L.card;ENDST=L.end||null;ready=true;render()},
   persist(){try{localStorage.setItem('rc_local',JSON.stringify(this.L))}catch(e){}},
   async savePlayer(p){players[ME]=p;render();if(DB){try{await DB.doc('players/'+ME).set(p)}catch(e){toast('Erro a gravar: '+e.code)}}else this.persist()},
   async addEvent(ev){ev.t=Date.now();ev.by=ME;if(DB){try{await DB.collection('events').add(ev)}catch(e){toast('Erro a gravar')}}else{events.unshift({id:String(ev.t),...ev});this.L.events=events;this.persist();render()}},
+  async setEnd(v){ENDST=v;render();if(DB){try{await DB.doc('game/end').set(v)}catch(e){toast('Erro')}}else{this.L.end=v;this.persist()}},
   async setCard(c){card=c;render();if(DB){try{await DB.doc('game/card').set(c||{open:false})}catch(e){toast('Erro')}}else{this.L.card=c;this.persist()}}
 };
 let pendingProfile=null;
@@ -275,6 +277,7 @@ function render(){
   <div class="board">${L.map((p,i)=>{const bump=lastTotals[p.id]!==undefined&&lastTotals[p.id]!==p.s.total;return `<span class="bp ${i===0&&p.s.total>0?'lead':''} ${p.id===ME?'active':''} ${bump?'bump':''}">${av(p,26)}${i===0&&p.s.total>0?'👑 ':''}${esc(p.name)} <b>${p.s.total}</b></span>`}).join('')}</div></div></div>`;
   L.forEach(p=>lastTotals[p.id]=p.s.total);
   $('#nav').innerHTML=`<div class="wrap">${NAV.map(([k,e,l])=>`<button class="${tab===k?'on':''}" onclick="go('${k}')"><span>${k==='perfil'?players[ME].e:e}</span>${l}${k==='cartas'&&card&&card.open?' •':''}</button>`).join('')}</div>`;
+  if(ENDST&&ENDST.on&&!peek){finale(L);return}
   ({perfil,bingo,cartas,ranking})[tab](me,L);
   setTimeout(()=>document.querySelectorAll('.bp.bump').forEach(b=>b.classList.remove('bump')),400);
   if(me&&me.s.lines>(players[ME].powers||0)&&!$('#modal').classList.contains('show'))power();
@@ -363,6 +366,27 @@ function cartas(){
 function draw(){const recent=events.filter(e=>e.k==='card').slice(0,6).map(e=>e.ci);let pool=CARDS.map((_,i)=>i).filter(i=>!recent.includes(i));const i=pool[Math.floor(Math.random()*pool.length)];Store.setCard({open:true,i,by:ME,t:Date.now()})}
 function winCard(){const C=CARDS[card.i],ci=card.i;pick({html:`<div class="hd"><div class="em">🏅</div><h3>${C[0]}</h3></div>`,lbl:'Quem ganhou?',cta:`Dar +${C[2]}`,cb:ids=>{Store.addEvent({k:'card',ci,to:ids,pts:C[2],msg:`🃏 ${ids.map(nm).join(', ')} ganhou "${C[0]}"`});Store.setCard(null);closeM();confetti(80)}})}
 
+
+/* ---------- FIM DA ROTA ---------- */
+let peek=false,finalShown=false;
+function endAsk(){openM(`<div class="hd"><div class="em">🏁</div><h3>Terminar a rota?</h3><p>Todos os telemóveis passam para o pódio final. Dá para reabrir se for engano.</p></div><div class="stack"><button class="btn gold full" onclick="closeM();peek=false;Store.setEnd({on:true,by:ME,t:Date.now()})">Terminar e ver o pódio</button><button class="btn ghost full" onclick="closeM()">Ainda não</button></div>`)}
+function finale(L){
+  $('#nav').innerHTML='';
+  const s=x=>x.s,tot=L.reduce((a,p)=>a+p.s.cups,0),wat=L.reduce((a,p)=>a+(p.water||0),0),cards=events.filter(e=>e.k==='card').length,duels=events.filter(e=>e.k==='duel').length,lines=L.reduce((a,p)=>a+p.s.lines,0);
+  const by=f=>L.slice().sort((a,b)=>f(b)-f(a))[0];const pod=[L[1],L[0],L[2]],h=[86,118,66],c=['#C9C9C9','#D9B44A','#C98A4B'],lab=['2','1','3'];
+  const w=L[0];
+  $('#main').innerHTML=`<div class="sec stack" style="text-align:center">
+  <div class="pass" style="text-align:center"><small style="font-size:10px;letter-spacing:.16em;color:var(--gold);font-weight:800">FIM DA ROTA · ${new Date(ENDST.t).toTimeString().slice(0,5)}</small>
+   <div style="margin:14px auto 6px;display:flex;justify-content:center">${w?av(w,84):''}</div><h2>${w?esc(w.name):'—'}</h2><p class="sub" style="color:var(--cream)">Campeão da Rota dos Copos com <b style="color:var(--gold)">${w?w.s.total:0} pontos</b></p></div>
+  <div class="card"><div class="podium">${pod.map((p,i)=>p?`<div class="pod">${av(p,i===1?56:44)}<div class="nm">${esc(p.name)}</div><div class="ps">${p.s.total}</div><div class="blk" style="height:${h[i]}px;background:${c[i]}">${lab[i]}</div></div>`:'<div class="pod"></div>').join('')}</div></div>
+  <div class="bd" style="margin:0"><div><b>${tot}</b><span>🍷 COPOS</span></div><div><b>${wat}</b><span>💧 ÁGUAS</span></div><div><b>${cards}</b><span>🃏 CARTAS</span></div><div><b>${lines}</b><span>🎯 LINHAS</span></div></div>
+  ${L.length?`<div class="awards" style="text-align:left"><div class="aw2"><div class="e">🧽</div><div class="l">Esponja do dia</div><div class="v">${esc(by(p=>p.s.cups).name)}</div></div><div class="aw2"><div class="e">💧</div><div class="l">Camelo hidratado</div><div class="v">${esc(by(p=>p.water||0).name)}</div></div><div class="aw2"><div class="e">🎯</div><div class="l">Rei do bingo</div><div class="v">${esc(by(p=>p.s.cells).name)}</div></div><div class="aw2"><div class="e">🃏</div><div class="l">Desafiador</div><div class="v">${esc(by(p=>p.s.extra).name)}</div></div></div>`:''}
+  <div class="card" style="text-align:left">${L.map((p,i)=>`<div class="rk"><span class="p">${i+1}</span>${av(p,34)}<div class="n">${esc(p.name)}<small>${p.s.cups} 🍷 · ${p.s.water} 💧 · ${p.s.bingo} 🎯 · ${p.s.extra} 🃏</small></div><span class="s">${p.s.total}</span></div>`).join('')}</div>
+  <p class="sub">${duels} duelos · ${L.length} jogadores · Essência do Vinho 2026</p>
+  <button class="btn ghost full" onclick="peek=true;tab='ranking';render()">Ver a app</button>
+  <button class="btn ghost full" onclick="Store.setEnd({on:false,t:Date.now()})">Reabrir a rota</button></div>`;
+  if(!finalShown){finalShown=true;scrollTo(0,0);setTimeout(()=>confetti(300),200)}
+}
 /* ---------- RANKING ---------- */
 function glass(level,w=132,h=200){
   const y=20+150*(1-level);
@@ -384,6 +408,7 @@ function ranking(me,L){
   <div class="card"><div class="rule" style="font-size:11px;color:var(--muted);font-weight:800"><span>JOGADOR</span><span>🍷 · 💧 · 🎯 · 🃏 = TOTAL</span></div>
    ${L.map((p,i)=>`<div class="rk"><span class="p">${i+1}</span>${av(p,34)}<div class="n">${esc(p.name)}${p.id===ME?' (tu)':''}<small>${p.s.cups} · ${p.s.water} · ${p.s.bingo} · ${p.s.extra}</small></div><span class="s">${p.s.total}</span></div>`).join('')}</div>
   ${L.length?`<div class="awards"><div class="aw2"><div class="e">🧽</div><div class="l">Esponja do dia</div><div class="v">${esc(by(p=>p.s.cups).name)}</div></div><div class="aw2"><div class="e">💧</div><div class="l">Camelo hidratado</div><div class="v">${esc(by(p=>p.water||0).name)}</div></div><div class="aw2"><div class="e">🎯</div><div class="l">Rei do bingo</div><div class="v">${esc(by(p=>p.s.cells).name)}</div></div><div class="aw2"><div class="e">🃏</div><div class="l">Desafiador</div><div class="v">${esc(by(p=>p.s.extra).name)}</div></div></div>`:''}
+  <button class="btn gold full" onclick="endAsk()">🏁 Terminar a rota</button>
   <div class="card"><div style="font:700 17px Fraunces;margin-bottom:4px">Ao vivo</div><div class="feed">${events.filter(e=>e.msg).slice(0,15).map(e=>`<div><span style="opacity:.6">${new Date(e.t).toTimeString().slice(0,5)}</span> · ${e.msg}${e.pts?` <b style="color:var(--gold)">${e.pts>0?'+':''}${e.pts}</b>`:''}</div>`).join('')||'<div>Ainda nada. Lancem uma carta!</div>'}</div></div>
   </div>`;
 }
